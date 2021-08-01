@@ -7,8 +7,6 @@ terraform {
   required_version = "0.13.2"
 }
 
-variable "aws_account_id" {}
-variable "region" {}
 variable "environment_name" {}
 
 locals {
@@ -24,7 +22,7 @@ resource "aws_sns_topic" "normal" {
 }
 
 resource "aws_sns_topic" "dlq" {
-  name = "${var.environment_name}-dlq"
+  name = "${var.environment_name}-dlq-subscription-sns"
 
   tags = {
     Name = local.project_name
@@ -59,6 +57,16 @@ resource "aws_s3_bucket" "terraform_study" {
       days = 10
     }
   }
+
+  tags = {
+    Name = local.project_name
+  }
+}
+
+# dlq
+resource "aws_sqs_queue" "dlq" {
+  name                      = "${local.project_name}-${var.environment_name}-dlq"
+  message_retention_seconds = 1209600
 
   tags = {
     Name = local.project_name
