@@ -72,3 +72,19 @@ resource "aws_sqs_queue" "dlq" {
     Name = local.project_name
   }
 }
+
+# s3 event queue
+resource "aws_sqs_queue" "s3_event_queue" {
+  name                       = "${local.project_name}-${var.environment_name}-s3-event-queue"
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 10
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dlq.arn
+    maxReceiveCount     = 4
+  })
+
+  tags = {
+    Name = local.project_name
+  }
+}
