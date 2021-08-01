@@ -44,6 +44,22 @@ resource "aws_s3_bucket" "terraform_study" {
     }
   }
 
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    id      = "${local.project_name}-lifecycle-rule"
+    enabled = true
+
+    expiration {
+      days = 60
+    }
+    noncurrent_version_expiration {
+      days = 10
+    }
+  }
+
   tags = {
     Name = local.project_name
   }
