@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sns-publisher
+
+  Sample SAM Template for aws-cost-notification
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 5
+
+Resources:
+  AwsCostNotificationFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: ["sns-publisher"]
+      Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+        Variables:
+          TOPIC_ARN: VALUE
+          REGION: VALUE
+    Metadata:
+      DockerTag: go1.x-v1
+      DockerContext: ./sns-publisher
+      Dockerfile: Dockerfile
+
+Outputs:
+  AwsSNSPublisherFunction:
+    Description: "First Lambda Function ARN"
+    Value: !GetAtt AwsSNSPublisherFunction.Arn
