@@ -1,32 +1,28 @@
 provider "aws" {
   region  = "ap-northeast-1"
   version = "3.48.0"
+
+  default_tags {
+    tags = {
+      Name = local.project_name
+    }
+  }
 }
 
 terraform {
   required_version = "0.13.2"
 }
 
-variable "environment_name" {}
-
 locals {
   project_name = "terraform-study-s3-sqs-lambda-sns"
 }
 
-resource "aws_sns_topic" "normal" {
-  name = "${var.environment_name}-normal"
-
-  tags = {
-    Name = local.project_name
-  }
+resource "aws_sns_topic" "success" {
+  name = "${var.environment_name}-success"
 }
 
 resource "aws_sns_topic" "dlq" {
   name = "${var.environment_name}-dlq-subscription-sns"
-
-  tags = {
-    Name = local.project_name
-  }
 }
 
 # S3
@@ -57,10 +53,6 @@ resource "aws_s3_bucket" "event_source" {
       days = 10
     }
   }
-
-  tags = {
-    Name = local.project_name
-  }
 }
 
 resource "aws_s3_bucket_notification" "event_source" {
@@ -72,6 +64,8 @@ resource "aws_s3_bucket_notification" "event_source" {
     events        = ["s3:ObjectCreated:*"]
     filter_prefix = "${var.environment_name}/"
   }
+
+  depends_on = [aws_lambda_permission.sns_publisher]
 }
 
 # dlq
@@ -82,10 +76,6 @@ locals {
 resource "aws_sqs_queue" "dlq" {
   name                      = local.dlq_name
   message_retention_seconds = 1209600
-
-  tags = {
-    Name = local.project_name
-  }
 }
 
 # s3 event queue
@@ -98,10 +88,6 @@ resource "aws_sqs_queue" "s3_event_queue" {
     deadLetterTargetArn = aws_sqs_queue.dlq.arn
     maxReceiveCount     = 4
   })
-
-  tags = {
-    Name = local.project_name
-  }
 }
 
 data "aws_caller_identity" "current" {}
@@ -135,8 +121,54 @@ resource "aws_cloudwatch_metric_alarm" "dlq" {
   dimensions = {
     QueueName = local.dlq_name
   }
+}
 
-  tags = {
-    Name = local.project_name
+# lambda function
+locals {
+  function_name = "${local.project_name}-${var.environment_name}-sns-publisher"
+}
+resource "aws_lambda_function" "sns_publisher" {
+  function_name = local.function_name
+  image_uri     = var.lambda_function_image_uri
+  package_type  = "Image"
+  role          = aws_iam_role.sns_publisher.arn
+  timeout       = 5
+
+
+  environment {
+    variables = {
+      "TOPIC_ARN" = aws_sns_topic.success.arn
+      "REGION"    = var.region
+    }
   }
+}
+
+resource "aws_iam_role_policy" "sns_publisher" {
+  name = "${local.function_name}-role-policy"
+  role = aws_iam_role.sns_publisher.id
+  policy = templatefile(
+    "./lambda_sns_publisher_policy.json",
+    {
+      topic_arn = aws_sns_topic.success.arn
+      queue_arn = aws_sqs_queue.s3_event_queue.arn
+    }
+  )
+}
+
+resource "aws_iam_role" "sns_publisher" {
+  name               = "${local.function_name}-role"
+  assume_role_policy = file("./lambda_assume_role_policy.json")
+}
+
+resource "aws_lambda_permission" "sns_publisher" {
+  statement_id  = "AllowExecutionFromSQS"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.sns_publisher.function_name
+  principal     = "sqs.amazonaws.com"
+  source_arn    = aws_sqs_queue.s3_event_queue.arn
+}
+
+resource "aws_lambda_event_source_mapping" "sns_publisher" {
+  event_source_arn = aws_sqs_queue.s3_event_queue.arn
+  function_name    = aws_lambda_function.sns_publisher.arn
 }
