@@ -63,6 +63,17 @@ resource "aws_s3_bucket" "event_source" {
   }
 }
 
+resource "aws_s3_bucket_notification" "event_source" {
+  bucket = aws_s3_bucket.event_source.id
+
+  queue {
+    id            = "${local.project_name}-var.environment_name"
+    queue_arn     = aws_sqs_queue.s3_event_queue.arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "${var.environment_name}/"
+  }
+}
+
 # dlq
 resource "aws_sqs_queue" "dlq" {
   name                      = "${local.project_name}-${var.environment_name}-dlq"
@@ -102,5 +113,5 @@ resource "aws_sqs_queue_policy" "s3_event_queue" {
       bucket_owner_account_id = data.aws_caller_identity.current.account_id
     }
   )
-
 }
+
