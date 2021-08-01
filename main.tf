@@ -75,8 +75,12 @@ resource "aws_s3_bucket_notification" "event_source" {
 }
 
 # dlq
+locals {
+  dlq_name = "${local.project_name}-${var.environment_name}-dlq"
+}
+
 resource "aws_sqs_queue" "dlq" {
-  name                      = "${local.project_name}-${var.environment_name}-dlq"
+  name                      = local.dlq_name
   message_retention_seconds = 1209600
 
   tags = {
@@ -115,3 +119,24 @@ resource "aws_sqs_queue_policy" "s3_event_queue" {
   )
 }
 
+# cloudwatch metric alarm
+resource "aws_cloudwatch_metric_alarm" "dlq" {
+  alarm_name          = "${local.project_name}-${var.environment_name}-s3-event-dlq"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "receive dead letter queue alarm"
+  alarm_actions       = [aws_sns_topic.dlq.arn]
+
+  dimensions = {
+    QueueName = local.dlq_name
+  }
+
+  tags = {
+    Name = local.project_name
+  }
+}
