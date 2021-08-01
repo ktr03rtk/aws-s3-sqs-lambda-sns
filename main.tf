@@ -30,7 +30,7 @@ resource "aws_sns_topic" "dlq" {
 }
 
 # S3
-resource "aws_s3_bucket" "terraform_study" {
+resource "aws_s3_bucket" "event_source" {
   bucket = local.project_name
   acl    = "private"
 
@@ -87,4 +87,20 @@ resource "aws_sqs_queue" "s3_event_queue" {
   tags = {
     Name = local.project_name
   }
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_sqs_queue_policy" "s3_event_queue" {
+  queue_url = aws_sqs_queue.s3_event_queue.id
+
+  policy = templatefile(
+    "./s3_event_sqs_policy.json",
+    {
+      queue_arn               = aws_sqs_queue.s3_event_queue.arn
+      source_bucket_name      = aws_s3_bucket.event_source.id
+      bucket_owner_account_id = data.aws_caller_identity.current.account_id
+    }
+  )
+
 }
