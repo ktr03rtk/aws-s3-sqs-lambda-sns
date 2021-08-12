@@ -64,8 +64,6 @@ resource "aws_s3_bucket_notification" "event_source" {
     events        = ["s3:ObjectCreated:*"]
     filter_prefix = "${var.environment_name}/"
   }
-
-  depends_on = [aws_lambda_permission.sns_publisher]
 }
 
 # dlq
@@ -158,14 +156,6 @@ resource "aws_iam_role_policy" "sns_publisher" {
 resource "aws_iam_role" "sns_publisher" {
   name               = "${local.function_name}-role"
   assume_role_policy = file("./lambda_assume_role_policy.json")
-}
-
-resource "aws_lambda_permission" "sns_publisher" {
-  statement_id  = "AllowExecutionFromSQS"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.sns_publisher.function_name
-  principal     = "sqs.amazonaws.com"
-  source_arn    = aws_sqs_queue.s3_event_queue.arn
 }
 
 resource "aws_lambda_event_source_mapping" "sns_publisher" {
