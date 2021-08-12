@@ -39,7 +39,7 @@ resource "aws_sqs_queue_policy" "s3_event_queue" {
   queue_url = aws_sqs_queue.s3_event_queue.id
 
   policy = templatefile(
-    "./s3_event_sqs_policy.json",
+    "${path.module}/s3_event_sqs_policy.json",
     {
       queue_arn               = aws_sqs_queue.s3_event_queue.arn
       source_bucket_name      = var.source_bucket_name
@@ -91,7 +91,7 @@ resource "aws_iam_role_policy" "sns_publisher" {
   name = "${local.function_full_name}-role-policy"
   role = aws_iam_role.sns_publisher.id
   policy = templatefile(
-    "./lambda_sns_publisher_policy.json",
+    "${path.module}/lambda_sns_publisher_policy.json",
     {
       topic_arn = aws_sns_topic.success.arn
       queue_arn = aws_sqs_queue.s3_event_queue.arn
@@ -101,7 +101,7 @@ resource "aws_iam_role_policy" "sns_publisher" {
 
 resource "aws_iam_role" "sns_publisher" {
   name               = "${local.function_full_name}-role"
-  assume_role_policy = file("./lambda_assume_role_policy.json")
+  assume_role_policy = file("${path.module}/lambda_assume_role_policy.json")
 }
 
 resource "aws_lambda_event_source_mapping" "sns_publisher" {
