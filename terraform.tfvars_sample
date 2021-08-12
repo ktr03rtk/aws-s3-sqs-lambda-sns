@@ -1,0 +1,3 @@
+# function_uri_list = {function_name = "{image_name}:{image_tag}"}
+function_uri_list = {func1 = "aaa/bbb:1.0.0", func2 = "aaa/ccc:1.0.0"}
+region            = "ap-northeast-1"
