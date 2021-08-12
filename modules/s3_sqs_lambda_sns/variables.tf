@@ -1,4 +1,6 @@
-variable "project_name" {}
-variable "environment_name" {}
-variable "lambda_function_image_uri" {}
+variable "lambda_function_name" {}
+variable "lambda_function_image" {}
 variable "region" {}
+variable "project_name" {}
+variable "source_bucket_name" {}
+

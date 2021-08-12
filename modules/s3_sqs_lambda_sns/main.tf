@@ -1,56 +1,19 @@
+locals {
+  resource_name = "${var.project_name}-${var.lambda_function_name}"
+}
+
+# sns
 resource "aws_sns_topic" "success" {
-  name = "${var.environment_name}-success"
+  name = "${local.resource_name}-success"
 }
 
 resource "aws_sns_topic" "dlq" {
-  name = "${var.environment_name}-dlq-subscription-sns"
-}
-
-# S3
-resource "aws_s3_bucket" "event_source" {
-  bucket = var.project_name
-  acl    = "private"
-  force_destroy = true
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
-
-  versioning {
-    enabled = true
-  }
-
-  lifecycle_rule {
-    id      = "${var.project_name}-lifecycle-rule"
-    enabled = true
-
-    expiration {
-      days = 60
-    }
-    noncurrent_version_expiration {
-      days = 10
-    }
-  }
-}
-
-resource "aws_s3_bucket_notification" "event_source" {
-  bucket = aws_s3_bucket.event_source.id
-
-  queue {
-    id            = "${var.project_name}-var.environment_name"
-    queue_arn     = aws_sqs_queue.s3_event_queue.arn
-    events        = ["s3:ObjectCreated:*"]
-    filter_prefix = "${var.environment_name}/"
-  }
+  name = "${local.resource_name}-dlq-subscription-sns"
 }
 
 # dlq
 locals {
-  dlq_name = "${var.project_name}-${var.environment_name}-dlq"
+  dlq_name = "${local.resource_name}-dlq"
 }
 
 resource "aws_sqs_queue" "dlq" {
@@ -60,7 +23,7 @@ resource "aws_sqs_queue" "dlq" {
 
 # s3 event queue
 resource "aws_sqs_queue" "s3_event_queue" {
-  name                       = "${var.project_name}-${var.environment_name}-s3-event-queue"
+  name                       = "${local.resource_name}-s3event-queue"
   message_retention_seconds  = 1209600
   visibility_timeout_seconds = 10
 
@@ -79,7 +42,7 @@ resource "aws_sqs_queue_policy" "s3_event_queue" {
     "./s3_event_sqs_policy.json",
     {
       queue_arn               = aws_sqs_queue.s3_event_queue.arn
-      source_bucket_name      = aws_s3_bucket.event_source.id
+      source_bucket_name      = var.source_bucket_name
       bucket_owner_account_id = data.aws_caller_identity.current.account_id
     }
   )
@@ -87,7 +50,7 @@ resource "aws_sqs_queue_policy" "s3_event_queue" {
 
 # cloudwatch metric alarm
 resource "aws_cloudwatch_metric_alarm" "dlq" {
-  alarm_name          = "${var.project_name}-${var.environment_name}-s3-event-dlq"
+  alarm_name          = "${local.resource_name}-s3event-dlq-alarm"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
   namespace           = "AWS/SQS"
@@ -105,11 +68,12 @@ resource "aws_cloudwatch_metric_alarm" "dlq" {
 
 # lambda function
 locals {
-  function_name = "${var.project_name}-${var.environment_name}-sns-publisher"
+  function_full_name = "${local.resource_name}-sns-publisher"
+  function_image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com/${var.lambda_function_image}"
 }
 resource "aws_lambda_function" "sns_publisher" {
-  function_name = local.function_name
-  image_uri     = var.lambda_function_image_uri
+  function_name = local.function_full_name
+  image_uri     = local.function_image_uri
   package_type  = "Image"
   role          = aws_iam_role.sns_publisher.arn
   timeout       = 5
@@ -124,7 +88,7 @@ resource "aws_lambda_function" "sns_publisher" {
 }
 
 resource "aws_iam_role_policy" "sns_publisher" {
-  name = "${local.function_name}-role-policy"
+  name = "${local.function_full_name}-role-policy"
   role = aws_iam_role.sns_publisher.id
   policy = templatefile(
     "./lambda_sns_publisher_policy.json",
@@ -136,7 +100,7 @@ resource "aws_iam_role_policy" "sns_publisher" {
 }
 
 resource "aws_iam_role" "sns_publisher" {
-  name               = "${local.function_name}-role"
+  name               = "${local.function_full_name}-role"
   assume_role_policy = file("./lambda_assume_role_policy.json")
 }
 
